@@ -22,8 +22,8 @@ c0_max, c1_max,c2_max, c3_max son las camapcidades maximas de almacenamiento de 
 
 fecha de revision, es la hora en la cual fueron tomados los stocks, debe estar perfectamente sincronizada con los datos de stock, sino se generan errores que pueden ser importantes
 
-#Matematica
+# Matematica
 
 Resumen de la matematica para el calculo de productos
 
-[Edited with overleaft](Shell_doc_cal.pdf)
+[Doc tecnico](Shell_doc_cal.pdf)
