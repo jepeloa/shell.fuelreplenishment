@@ -26,4 +26,4 @@ fecha de revision, es la hora en la cual fueron tomados los stocks, debe estar p
 
 Resumen de la matematica para el calculo de productos
 
-[Edited with overleaft](Shell_doc_calc.pdf)
+[Edited with overleaft](Shell_doc_cal.pdf)
