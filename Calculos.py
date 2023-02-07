@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[21]:
+# In[188]:
 
 
 #calculo de productos para tanques cisterna simetricos
@@ -14,13 +14,10 @@ from datetime import timedelta
 def model_calc(m1,m2,m3,m4,n1,n2,n3,n4,C,c_min,h):
     if n1==0 and n2==0 and n3==0 and n4==0:
         print("no todos los tanques pueden estar vacios, no se puede resolver")
-        
-    ####sacar luego
     n1=1
     n2=1
     n3=1
     n4=1
-    ####
     h=C/(n1*m1+n2*m2+n3*m3+n4*m4)
     product_1=n1*m1*h
     product_2=n2*m2*h
@@ -33,12 +30,11 @@ def model_calc(m1,m2,m3,m4,n1,n2,n3,n4,C,c_min,h):
 def model_calc_by_stock(m0,m1,m2,m3,n0,n1,n2,n3,q0,q1,q2,q3,c0_max,c1_max,c2_max,c3_max, C,c_min,h):
     if n0==0 and n1==0 and n2==0 and n3==0:
         print("no todos los tanques pueden estar vacios, no se puede resolver")
-    ####sacar luego
     n0=1
     n1=1
     n2=1
     n3=1
-    ####  
+        
     #h=(C-c0_max-c1_max-c2_max-c3_max+q0+q1+q2+q3)/(n0*m0+n1*m1+n2*m2+n3*m3)
     h=C/(n0*m0+n1*m1+n2*m2+n3*m3)
     #if h<=0:
@@ -149,12 +145,15 @@ def stock_underfill_check(c0_max, c1_max, c2_max, c3_max, q0,q1,q2,q3,m0,m1,m2,m
             cap3=q3-m3*row['min_after']
             if (cap0 < 0 or cap1 < 0 or cap2 < 0 or cap3 < 0):
                 pass
-                #row['min_after']=row['min_after']-60
+                row['min_after']=row['min_after']-180
                 #product_list=random.sample(product_list, len(product_list))  #ordeno aleatoriamente para ver si puedo salir de la condicion de romper stock
                 #results_filtered.loc[i]=[m0, m1, m2, m3, row['min_after'], row['product_1'], row['product_2'], row['product_3'], row['product_4']]
+                #i=i+1
             else:
                 results_filtered.loc[i]=[m0, m1, m2, m3, row['min_after'], row['product_1'], row['product_2'], row['product_3'], row['product_4']]
-                i=i+1
+                break;
+            i=i+1
+    results_filtered=results_filtered[results_filtered['min_after']==results_filtered['min_after'].min()]
     return results_filtered
 
 def eval_model(m0, m1, m2, m3, C, c_min, c0_max, c1_max, c2_max, c3_max, window, q0, q1, q2, q3):
@@ -215,7 +214,6 @@ def shift_windows(revision_date,H,shift):
             window_upper=H+(24.0-H_ventana)
         return window_lower, window_upper, H_ventana,H_shifted
     
-#eval
 def model_run(revision_date, m0, m1, m2, m3, C, c_min, c0_max, c1_max, c2_max, c3_max, q0, q1, q2, q3):
     window=0
     r1,r2,r3=eval_model(m0, m1, m2, m3, C, c_min, c0_max, c1_max, c2_max, c3_max, window, q0, q1, q2, q3)
@@ -226,23 +224,258 @@ def model_run(revision_date, m0, m1, m2, m3, C, c_min, c0_max, c1_max, c2_max, c
     #asignacion de nombre de productos, se podria dejar en general pero es mas facil.
     results=results.rename(columns = {'product_1_liters':'Shell V-Power Diesel','product_2_liters':'Shell Evolux Diesel B 500','product_3_liters':'Shell V-Power Nafta', 'product_4_liters':'Nafta Super Bio'})
     results=results.groupby(['Shell V-Power Diesel', 'Shell Evolux Diesel B 500','Shell V-Power Nafta','Nafta Super Bio'], as_index=False).mean()
-    H=results['min_after'].min() #horas que tarda en llenarse un camion de C litros
-    window_lower, window_upper, H_window, H_shifted=shift_windows(revision_date,H/60,0)
-    return results, round(window_lower,0), round(window_upper,0), H_window, H_shifted
+    H=(results['min_after'].min())/60 #horas que tarda en llenarse un camion de C litros
+    print(H)
+    window_lower, window_upper, H_window, H_shifted=shift_windows(revision_date,H,0)
+    return results, H, round(window_lower,0), round(window_upper,0), H_window, H_shifted
 
 
-# In[22]:
+# In[189]:
 
 
+##Seleccion de tanques estacion de servicio
+def stocks_pd(data, q1_,q9_,q7_,q3_,q5_,q8_,q11_,q4_,q6_):
+    stocks_pd = pd.DataFrame(data, columns=['fueltank.code','product.name','stock','fueltank.capacity'])
+    return stocks_pd
+
+def stocks_by_products(data):
+    grouped_data=data.groupby(['product.name']).sum().reset_index()
+    q0_=grouped_data[grouped_data['product.name']=='Shell V-Power Diesel']
+    q1_=grouped_data[grouped_data['product.name']=='Shell Evolux Diesel B 500']
+    q2_=grouped_data[grouped_data['product.name']=='Shell V-Power Nafta']
+    q3_=grouped_data[grouped_data['product.name']=='Nafta Super Bio']
+    return int(q0_['stock']), int(q1_['stock']), int(q2_['stock']), int(q3_['stock'])
+
+def tank_selector(stocks,m1__,m3__,m4__,m5__,m6__,m7__,m8__,m9__,m11__,h,c_min):
+    shell_v_power_D=stocks[stocks['product.name']=='Shell V-Power Diesel']
+    evolux_D=stocks[stocks['product.name']=='Shell Evolux Diesel B 500']
+    shell_v_power_n=stocks[stocks['product.name']=='Shell V-Power Nafta']
+    Nafta_super_bio=stocks[stocks['product.name']=='Nafta Super Bio']
+  
+    #prevision de stock
+   
+    #shell_v_power_D['capacity_prevision']=shell_v_power_D['fueltank.capacity']-shell_v_power_D['stock']+(m0/2)*h*60
+    #shell_v_power_n['capacity_prevision']=shell_v_power_n['fueltank.capacity']-shell_v_power_n['stock']+(m2/3)*h*60
+    #Nafta_super_bio['capacity_prevision']=Nafta_super_bio['fueltank.capacity']-Nafta_super_bio['stock']+(m3/3)*h*60
+    
+    #Tanque evolux calculo de consumo
+    evolux_D['capacity_prevision']=evolux_D['fueltank.capacity']-evolux_D['stock']+(m7__)*h*60
+    
+    #Tanques Shell V power Diesel calculo consumo
+    shell_v_power_D_1=shell_v_power_D[shell_v_power_D['fueltank.code']==1]
+    shell_v_power_D_1['capacity_prevision']=shell_v_power_D_1['fueltank.capacity']-shell_v_power_D_1['stock']+m1__*h*60
+    shell_v_power_D_9=shell_v_power_D[shell_v_power_D['fueltank.code']==9]
+    shell_v_power_D_9['capacity_prevision']=shell_v_power_D_9['fueltank.capacity']-shell_v_power_D_9['stock']+m9__*h*60
+    shell_v_power_D=pd.concat([shell_v_power_D_1, shell_v_power_D_9], axis=0,ignore_index=True)
+    
+    
+    shell_v_power_n_3=shell_v_power_n[shell_v_power_n['fueltank.code']==3]
+    shell_v_power_n_3['capacity_prevision']=shell_v_power_n_3['fueltank.capacity']-shell_v_power_n_3['stock']+m3__*h*60
+    shell_v_power_n_5=shell_v_power_n[shell_v_power_n['fueltank.code']==5]
+    shell_v_power_n_5['capacity_prevision']=shell_v_power_n_5['fueltank.capacity']-shell_v_power_n_5['stock']+m5__*h*60
+    shell_v_power_n_8=shell_v_power_n[shell_v_power_n['fueltank.code']==8]
+    shell_v_power_n_8['capacity_prevision']=shell_v_power_n_8['fueltank.capacity']-shell_v_power_n_8['stock']+m8__*h*60
+    shell_v_power_n=pd.concat([shell_v_power_n_3, shell_v_power_n_5,shell_v_power_n_8], axis=0,ignore_index=True)
+    
+
+    Nafta_super_bio_4=Nafta_super_bio[Nafta_super_bio['fueltank.code']==4]
+    Nafta_super_bio_4['capacity_prevision']=Nafta_super_bio_4['fueltank.capacity']-Nafta_super_bio_4['stock']+m4__*h*60
+    Nafta_super_bio_6=Nafta_super_bio[Nafta_super_bio['fueltank.code']==6]
+    Nafta_super_bio_6['capacity_prevision']=Nafta_super_bio_6['fueltank.capacity']-Nafta_super_bio_6['stock']+m6__*h*60
+    Nafta_super_bio_11=Nafta_super_bio[Nafta_super_bio['fueltank.code']==11]
+    Nafta_super_bio_11['capacity_prevision']=Nafta_super_bio_11['fueltank.capacity']-Nafta_super_bio_11['stock']+m11__*h*60
+    Nafta_super_bio=pd.concat([Nafta_super_bio_4, Nafta_super_bio_6, Nafta_super_bio_11], axis=0, ignore_index=True) 
+    
+    
+    
+    #x<5000
+    shell_v_power_D.loc[ (shell_v_power_D.capacity_prevision<c_min), 'available'] = 0  
+    evolux_D.loc[ (evolux_D.capacity_prevision<c_min), 'available'] = 0
+    shell_v_power_n.loc[ (shell_v_power_n.capacity_prevision<c_min), 'available'] = 0
+    Nafta_super_bio.loc[ (Nafta_super_bio.capacity_prevision<c_min), 'available'] = 0
+    
+    ####   5000<x<10000
+    shell_v_power_D.loc[ ((shell_v_power_D.capacity_prevision<2*c_min) & (shell_v_power_D.capacity_prevision>c_min)), 'available'] = 5000  
+    evolux_D.loc[ ((evolux_D.capacity_prevision<2*c_min) & (evolux_D.capacity_prevision>c_min)), 'available'] = 5000
+    shell_v_power_n.loc[ ((shell_v_power_n.capacity_prevision<2*c_min) & (shell_v_power_n.capacity_prevision>c_min)), 'available'] = 5000
+    Nafta_super_bio.loc[ ((Nafta_super_bio.capacity_prevision<2*c_min) & (Nafta_super_bio.capacity_prevision>c_min)), 'available'] = 5000
+    
+    ####    10000<x<15000date_store_validation
+    
+    shell_v_power_D.loc[ ((shell_v_power_D.capacity_prevision<3*c_min) & (shell_v_power_D.capacity_prevision>2*c_min)), 'available'] = 10000  
+    evolux_D.loc[ ((evolux_D.capacity_prevision<3*c_min) & (evolux_D.capacity_prevision>2*c_min)), 'available'] = 10000
+    shell_v_power_n.loc[ ((shell_v_power_n.capacity_prevision<3*c_min) & (shell_v_power_n.capacity_prevision>2*c_min)), 'available'] = 10000
+    Nafta_super_bio.loc[ ((Nafta_super_bio.capacity_prevision<3*c_min) & (Nafta_super_bio.capacity_prevision>2*c_min)), 'available'] = 10000
+    
+    ####    15000<x<20000
+    
+    shell_v_power_D.loc[ ((shell_v_power_D.capacity_prevision<4*c_min) & (shell_v_power_D.capacity_prevision>3*c_min)), 'available'] = 15000  
+    evolux_D.loc[ ((evolux_D.capacity_prevision<4*c_min) & (evolux_D.capacity_prevision>3*c_min)), 'available'] = 15000
+    shell_v_power_n.loc[ ((shell_v_power_n.capacity_prevision<4*c_min) & (shell_v_power_n.capacity_prevision>3*c_min)), 'available'] = 15000
+    Nafta_super_bio.loc[ ((Nafta_super_bio.capacity_prevision<4*c_min) & (Nafta_super_bio.capacity_prevision>3*c_min)), 'available'] = 15000
+    
+    ####    20000<x<25000
+    
+    shell_v_power_D.loc[ ((shell_v_power_D.capacity_prevision<5*c_min) & (shell_v_power_D.capacity_prevision>4*c_min)), 'available'] = 20000  
+    evolux_D.loc[ ((evolux_D.capacity_prevision<5*c_min) & (evolux_D.capacity_prevision>3*c_min)), 'available'] = 20000
+    shell_v_power_n.loc[ ((shell_v_power_n.capacity_prevision<5*c_min) & (shell_v_power_n.capacity_prevision>4*c_min)), 'available'] = 20000
+    Nafta_super_bio.loc[ ((Nafta_super_bio.capacity_prevision<5*c_min) & (Nafta_super_bio.capacity_prevision>4*c_min)), 'available'] = 20000
+    
+    #### x>25000
+    
+    shell_v_power_D.loc[ (shell_v_power_D.capacity_prevision>5*c_min), 'available'] = 25000  
+    evolux_D.loc[ (evolux_D.capacity_prevision>5*c_min), 'available'] = 25000
+    shell_v_power_n.loc[ (shell_v_power_n.capacity_prevision>5*c_min), 'available'] = 25000
+    Nafta_super_bio.loc[ (Nafta_super_bio.capacity_prevision>5*c_min), 'available'] = 25000
+    
+    shell_v_power_D['available_stock']=shell_v_power_D['fueltank.capacity']-shell_v_power_D['capacity_prevision']
+    evolux_D['available_stock']=evolux_D['fueltank.capacity']-evolux_D['capacity_prevision']
+    shell_v_power_n['available_stock']=shell_v_power_n['fueltank.capacity']-shell_v_power_n['capacity_prevision']
+    Nafta_super_bio['available_stock']=Nafta_super_bio['fueltank.capacity']-Nafta_super_bio['capacity_prevision']
+    
+    return shell_v_power_D, evolux_D, shell_v_power_n, Nafta_super_bio, shell_v_power_D['available'].sum(),evolux_D['available'].sum(), shell_v_power_n['available'].sum(), Nafta_super_bio['available'].sum() 
+
+
+def filter_orders_by_tank(orders,max_shell_v_power_D,max_evolux_D, max_shell_v_power_n, max_Nafta_super_bio):
+    orders=orders[orders['Shell V-Power Diesel']<=max_shell_v_power_D]
+    orders=orders[orders['Shell Evolux Diesel B 500']<=max_evolux_D]
+    orders=orders[orders['Shell V-Power Nafta']<=max_shell_v_power_n]
+    orders=orders[orders['Nafta Super Bio']<=max_Nafta_super_bio]
+    return orders
+
+
+# In[190]:
+
+
+##estimaciones de flujos de ventas por producto y por tanque (fuente excel)
+def read_xlsx_file(month, path):
+    if month==1:
+        month_="enero"
+    if month==2:
+        month_="febrero"
+    if month==3:
+        month_="marzo"
+    if month==4:
+        month_="abril"
+    if month==5:
+        month_="mayo"
+    if month==6:
+        month_="junio"
+    if month==7:
+        month_="julio"
+    if month==8:
+        month_="agosto"
+    if month==9:
+        month_="septiembre"
+    if month==10:
+        month_="octubre"
+    if month==11:
+        month_="noviembre"
+    if month==12:
+        month_="diciembre"    
+    #prevision=pd.read_excel('est1132.xlsx')  #archivo excel con toda la informacion de consumo
+    prevision=pd.read_excel(path)  #archivo excel con toda la informacion de consumo
+    prevision=prevision[prevision['Mes']==month_]
+    return prevision
+
+
+def day_translate(day):
+    if  day=='Monday':
+        day_week='lunes'
+    if  day=='Tuesday':
+        day_week='martes'
+    if  day=='Wednesday':
+        day_week='miércoles'
+    if  day=='Thursday':
+        day_week='jueves'
+    if  day=='Friday':
+        day_week='viernes'
+    if  day =='Saturday':
+        day_week='sábado'
+    if  day =='Sunday':
+        day_week='domingo'
+    return day_week
+#estimacion de flujos de ventas por producto
+
+def flow_estimation(prevision,product, DayOfWeek, hour):
+    columns_names= [product]
+    results=pd.DataFrame(columns = columns_names)
+    prevision=prevision[prevision['Producto']==product]
+    products_grouped=prevision.groupby(['Hora','DayOfWeek']).sum().reset_index()
+    day_array=np.array(['lunes', 'martes', 'miércoles', 'jueves', 'viernes','sábado','domingo','lunes','martes','miercoles','jueves','viernes','sábado','domingo'])
+    for i in range(0,len(day_array)):
+        if day_array[i]==DayOfWeek:
+            cum_hours=0
+            liters=0
+            for j in range(i,len(day_array)):
+                prevision_= products_grouped[ products_grouped['DayOfWeek']==day_array[j]]
+                for w, row in prevision_.iterrows():
+                    if (row['Hora']+100*cum_hours>=hour):  #primer dia
+                        liters=liters+int(row['CANT FACT'])
+                        #print(row['Hora'])
+                        results.loc[cum_hours]=[liters]
+                        cum_hours=cum_hours+1
+                    
+            break
+    return results
+
+#estimacion de flujos de venta por tanque
+
+def flow_estimation_by_tank(prevision,tank, DayOfWeek, hour,tot_hours):
+    columns_names= [tank]
+    results=pd.DataFrame(columns = columns_names)
+    prevision=prevision[prevision['TANQUE']==tank]
+    day_array=np.array(['lunes', 'martes', 'miércoles', 'jueves', 'viernes','sábado','domingo','lunes','martes','miercoles','jueves','viernes','sábado','domingo'])
+    for i in range(0,len(day_array)):
+        if day_array[i]==DayOfWeek:
+            cum_hours=0
+            liters=0
+            for j in range(i,len(day_array)):
+                prevision_= prevision[prevision['DayOfWeek']==day_array[j]]
+                for w, row in prevision_.iterrows():
+                    if (row['Hora']+100*cum_hours>=hour):  #primer dia
+                        liters=liters+int(row['CANT FACT'])
+                        #print(row['Hora'])
+                        results.loc[cum_hours]=[liters]
+                        cum_hours=cum_hours+1
+            break
+    liters=results.iloc[int(tot_hours)]
+    m=int(liters)/tot_hours/60
+    return m
+
+def model_flow_eval_by_tank(prevision,day,hour,H__):
+    m1__= flow_estimation_by_tank(prevision,'Tanque 01',day,hour,H__)
+    m3__= flow_estimation_by_tank(prevision,'Tanque 03',day,hour,H__)
+    m4__= flow_estimation_by_tank(prevision,'Tanque 04',day,hour,H__)
+    m5__= flow_estimation_by_tank(prevision,'Tanque 05',day,hour,H__)
+    m6__= flow_estimation_by_tank(prevision,'Tanque 06',day,hour,H__)
+    m7__= flow_estimation_by_tank(prevision,'Tanque 07',day,hour,H__)
+    m8__= flow_estimation_by_tank(prevision,'Tanque 08',day,hour,H__)
+    m9__= flow_estimation_by_tank(prevision,'Tanque 09',day,hour,H__)
+    m11__= flow_estimation_by_tank(prevision,'Tanque 11',day,hour,H__)
+    return m1__,m3__,m4__,m5__,m6__,m7__,m8__,m9__, m11__
+
+def model_flow_eval(prevision,day,hour,C):
+    results_1=flow_estimation(prevision,'V-Power Diesel',day,hour)
+    results_2=flow_estimation(prevision,'Nafta Super',day,hour)
+    results_3=flow_estimation(prevision,'Evolux',day,hour)
+    results_4=flow_estimation(prevision,'V-Power Nafta',day,hour)
+    fuel_consumption=pd.concat([results_1, results_2, results_3, results_4], axis=1)
+    fuel_consumption['sum']=fuel_consumption['V-Power Diesel']+fuel_consumption['Nafta Super']+fuel_consumption['Evolux']+fuel_consumption['V-Power Nafta']
+    H=(fuel_consumption[(fuel_consumption['sum']>C)].reset_index()).iloc[0]
+    h=H['index']
+    m0=H['V-Power Diesel']/H['index']/60
+    m3=H['Nafta Super']/H['index']/60
+    m1=H['Evolux']/H['index']/60
+    m2=H['V-Power Nafta']/H['index']/60
+    return h, m0, m1, m2, m3
+
+
+# In[191]:
 
 
 ###################################inputs del modelo para productos############################################
-#######################################
-m0=1.721
-m1=0.685
-m2=3.828
-m3=5.047
-#######################################
+
 #capacidad maxima del camion, capacidad del compartimiento
 C=25000
 c_min=5000
@@ -253,18 +486,128 @@ c1_max=10000   #evolux
 c2_max=30000   #vpower nafta
 c3_max=35000   #nafta super bio
 ######################################
-#Stocks sumados de los productos
-q0=17745
-q1=4632
-q2=19231
-q3=32100
+
 ######################################
 #fecha de revision
-revision_date="23-01-17 03:00:00"
+
+revision_date="23-02-06 03:13:00"
 revision_date = datetime.datetime.strptime(revision_date, '%y-%m-%d %H:%M:%S')
-##############################################################################################################
 
-model_run(revision_date, m0,m1,m2,m3,C,c_min,c0_max,c1_max,c2_max,c3_max,q0,q1,q2,q3)
+
+
+##################################input seleccion de tanques estacion#######################################
+#stocks por tanque unica variable que cambia necesito consumir esto de la api
+#vpower diesel
+q1_=11544
+q9_=8616
+
+#evolux
+q7_=7762
+
+#vpower nafta
+
+q3_=7854
+q5_=5678
+q8_=4567
+
+#nafta super bio
+
+q11_=4248
+q4_=2206
+q6_=4585
+
+
+
+#estacion de servicio, seleccion de tanques llegada de camiones##################################
+
+data = {'fueltank.code': [1,9,7,3,5,8,11,4,6],
+            'product.name': ['Shell V-Power Diesel', 'Shell V-Power Diesel','Shell Evolux Diesel B 500','Shell V-Power Nafta','Shell V-Power Nafta','Shell V-Power Nafta','Nafta Super Bio','Nafta Super Bio','Nafta Super Bio'],
+            'stock':[q1_,q9_,q7_,q3_,q5_,q8_,q11_,q4_,q6_],
+            'fueltank.capacity':[15000,10000,10000,10000,10000,10000,15000,10000,10000]}
+
+#################################################################################################
+
+#generacion de estructura de stock y de stock por productos 
+
+stocks=stocks_pd(data, q1_,q9_,q7_,q3_,q5_,q8_,q11_,q4_,q6_) #generacion de stocks
+q0, q1, q2, q3=stocks_by_products(stocks)        
+
+#generacion de flujos de ventas de combustible por producto y por tanque###################
+
+hour_=revision_date.hour
+month_=revision_date.month
+day_week=day_translate(revision_date.strftime('%A'))
+
+prevision=read_xlsx_file(month_,'est_mensual_2022.xlsx')   ####ESTO DEBO SACARLO DE LA API###
+
+print("flujo de consumos por producto:")
+
+H_, m0_,m1_,m2_,m3_=model_flow_eval(prevision,day_week,hour_,C)
+print('Shell v power diesel')
+print(m0_)
+print('Evolux')
+print(m1_)
+print('Shell v power_nafta')
+print(m2_)
+print('Nafta super bio')
+print(m3_)
+
+print("flujos de consumo por tanuqe")
+
+m1__,m3__,m4__,m5__,m6__,m7__,m8__,m9__,m11__=model_flow_eval_by_tank(prevision,day_week,hour_,H_)
+
+print('Tanque 1')
+print(m1__)
+print('Tanque 3')
+print(m3__)
+print('Tanque 4')
+print(m4__)
+print('Tanque 5')
+print(m5__)
+print('Tanque 6')
+print(m6__)
+print('Tanque 7')
+print(m7__)
+print('Tanque 8')
+print(m8__)
+print('Tanque 9')
+print(m9__)
+print('Tanque 11')
+print(m11__)
+
+
+
+#eval
+orders, H, window_lower, window_upper, windows_exact, shifted_hours=model_run(revision_date, m0_,m1_,m2_,m3_,C,c_min,c0_max,c1_max,c2_max,c3_max,q0,q1,q2,q3)
+
+shell_v_power_D, evolux_D, shell_v_power_n, Nafta_super_bio, max_shell_v_power_D, max_evolux_D, max_shell_v_power_n, max_Nafta_super_bio=tank_selector(stocks,m1__,m3__,m4__,m5__,m6__,m7__,m8__,m9__,m11__,window_lower,c_min)
+
+orders_filtered=filter_orders_by_tank(orders,max_shell_v_power_D,max_evolux_D, max_shell_v_power_n, max_Nafta_super_bio)
+
+if orders_filtered.empty:
+    pass
+    shell_v_power_D, evolux_D, shell_v_power_n, Nafta_super_bio, max_shell_v_power_D, max_evolux_D, max_shell_v_power_n, max_Nafta_super_bio=tank_selector(stocks,m1__,m3__,m4__,m5__,m6__,m7__,m8__,m9__,m11__,window_lower+6,c_min)
+
+    orders_filtered=filter_orders_by_tank(orders,max_shell_v_power_D,max_evolux_D, max_shell_v_power_n, max_Nafta_super_bio)
+    
+#salida del motor de calculo
+
+#orders_filtered  (camion)
+#window_lower     (ventana inferior en horas)
+#window_upper     (ventana superior en horas)
+#shell_v_power_D  (disponibilidad de tanques v power diesel)
+#evolux_D         (disponibilidad de tanques evolux)
+#shell_v_power_n  (disponibilidad de tanques shell_v_power_n)
+#Nafta_super_bio  (disponibilidad de tanques nafta super)
+
+    
+    
+
+
+# In[192]:
+
+
+shell_v_power_D.head()
 
 
 # In[ ]:
@@ -279,22 +622,34 @@ model_run(revision_date, m0,m1,m2,m3,C,c_min,c0_max,c1_max,c2_max,c3_max,q0,q1,q
 
 
 
-# In[ ]:
+# In[193]:
 
 
+shell_v_power_n.head()
 
 
-
-# In[ ]:
-
+# In[194]:
 
 
+orders_filtered.head(10)
 
 
-# In[ ]:
+# In[155]:
 
 
+orders_filtered['min_after'].min()
 
+
+# In[186]:
+
+
+print(windows_exact)
+
+
+# In[183]:
+
+
+print(H)
 
 
 # In[ ]:
