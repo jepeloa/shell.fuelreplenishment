@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[188]:
+# In[7]:
 
 
 #calculo de productos para tanques cisterna simetricos
@@ -30,10 +30,10 @@ def model_calc(m1,m2,m3,m4,n1,n2,n3,n4,C,c_min,h):
 def model_calc_by_stock(m0,m1,m2,m3,n0,n1,n2,n3,q0,q1,q2,q3,c0_max,c1_max,c2_max,c3_max, C,c_min,h):
     if n0==0 and n1==0 and n2==0 and n3==0:
         print("no todos los tanques pueden estar vacios, no se puede resolver")
-    n0=1
-    n1=1
-    n2=1
-    n3=1
+    #n0=1
+    #n1=1
+    #n2=1
+    #n3=1
         
     #h=(C-c0_max-c1_max-c2_max-c3_max+q0+q1+q2+q3)/(n0*m0+n1*m1+n2*m2+n3*m3)
     h=C/(n0*m0+n1*m1+n2*m2+n3*m3)
@@ -230,13 +230,18 @@ def model_run(revision_date, m0, m1, m2, m3, C, c_min, c0_max, c1_max, c2_max, c
     return results, H, round(window_lower,0), round(window_upper,0), H_window, H_shifted
 
 
-# In[189]:
+# In[8]:
 
 
 ##Seleccion de tanques estacion de servicio
+
+##calculo de stocks por productos
+
 def stocks_pd(data, q1_,q9_,q7_,q3_,q5_,q8_,q11_,q4_,q6_):
     stocks_pd = pd.DataFrame(data, columns=['fueltank.code','product.name','stock','fueltank.capacity'])
     return stocks_pd
+
+
 
 def stocks_by_products(data):
     grouped_data=data.groupby(['product.name']).sum().reset_index()
@@ -245,6 +250,23 @@ def stocks_by_products(data):
     q2_=grouped_data[grouped_data['product.name']=='Shell V-Power Nafta']
     q3_=grouped_data[grouped_data['product.name']=='Nafta Super Bio']
     return int(q0_['stock']), int(q1_['stock']), int(q2_['stock']), int(q3_['stock'])
+
+#calculo de capacidades maxima por producto
+
+
+def capacities_pd(data):
+    stocks_pd = pd.DataFrame(data, columns=['fueltank.code','product.name','stock','fueltank.capacity'])
+    return stocks_pd
+
+
+
+def capacities_by_products(data):
+    grouped_data=data.groupby(['product.name']).sum().reset_index()
+    c0_=grouped_data[grouped_data['product.name']=='Shell V-Power Diesel']
+    c1_=grouped_data[grouped_data['product.name']=='Shell Evolux Diesel B 500']
+    c2_=grouped_data[grouped_data['product.name']=='Shell V-Power Nafta']
+    c3_=grouped_data[grouped_data['product.name']=='Nafta Super Bio']
+    return int(c0_['fueltank.capacity']), int(c1_['fueltank.capacity']), int(c2_['fueltank.capacity']), int(c3_['fueltank.capacity'])
 
 def tank_selector(stocks,m1__,m3__,m4__,m5__,m6__,m7__,m8__,m9__,m11__,h,c_min):
     shell_v_power_D=stocks[stocks['product.name']=='Shell V-Power Diesel']
@@ -344,7 +366,7 @@ def filter_orders_by_tank(orders,max_shell_v_power_D,max_evolux_D, max_shell_v_p
     return orders
 
 
-# In[190]:
+# In[9]:
 
 
 ##estimaciones de flujos de ventas por producto y por tanque (fuente excel)
@@ -471,20 +493,22 @@ def model_flow_eval(prevision,day,hour,C):
     return h, m0, m1, m2, m3
 
 
-# In[191]:
+# In[12]:
 
 
 ###################################inputs del modelo para productos############################################
 
-#capacidad maxima del camion, capacidad del compartimiento
+#capacidad maxima del camion, capacidad del compartimiento (input)
 C=25000
 c_min=5000
+
+
 ######################################
 #capacidades de tanques por producto, es la suma de los tanques de la estacion
-c0_max=25000   #v power diesel
-c1_max=10000   #evolux
-c2_max=30000   #vpower nafta
-c3_max=35000   #nafta super bio
+#c0_max=25000   #v power diesel
+#c1_max=10000   #evolux
+#c2_max=30000   #vpower nafta
+#c3_max=35000   #nafta super bio
 ######################################
 
 ######################################
@@ -525,12 +549,17 @@ data = {'fueltank.code': [1,9,7,3,5,8,11,4,6],
             'stock':[q1_,q9_,q7_,q3_,q5_,q8_,q11_,q4_,q6_],
             'fueltank.capacity':[15000,10000,10000,10000,10000,10000,15000,10000,10000]}
 
+
 #################################################################################################
 
 #generacion de estructura de stock y de stock por productos 
 
 stocks=stocks_pd(data, q1_,q9_,q7_,q3_,q5_,q8_,q11_,q4_,q6_) #generacion de stocks
-q0, q1, q2, q3=stocks_by_products(stocks)        
+q0, q1, q2, q3=stocks_by_products(stocks) 
+
+#generacion de capacidades maximas por tanque
+capacities_pd_=capacities_pd(data)
+c0_max, c1_max, c2_max, c3_max=capacities_by_products(capacities_pd_)
 
 #generacion de flujos de ventas de combustible por producto y por tanque###################
 
@@ -589,10 +618,14 @@ if orders_filtered.empty:
     shell_v_power_D, evolux_D, shell_v_power_n, Nafta_super_bio, max_shell_v_power_D, max_evolux_D, max_shell_v_power_n, max_Nafta_super_bio=tank_selector(stocks,m1__,m3__,m4__,m5__,m6__,m7__,m8__,m9__,m11__,window_lower+6,c_min)
 
     orders_filtered=filter_orders_by_tank(orders,max_shell_v_power_D,max_evolux_D, max_shell_v_power_n, max_Nafta_super_bio)
-    
+
+orders_filtered['valid']='True'
+orders=pd.concat([orders_filtered,orders])
+orders=orders.drop_duplicates(subset=orders.columns.difference(['valid']))
+
 #salida del motor de calculo
 
-#orders_filtered  (camion)
+#orders si la orden es valida tiene un True, sino NaN
 #window_lower     (ventana inferior en horas)
 #window_upper     (ventana superior en horas)
 #shell_v_power_D  (disponibilidad de tanques v power diesel)
@@ -604,10 +637,16 @@ if orders_filtered.empty:
     
 
 
-# In[192]:
+# In[13]:
 
 
-shell_v_power_D.head()
+orders.head()
+
+
+# In[ ]:
+
+
+
 
 
 # In[ ]:
@@ -622,34 +661,52 @@ shell_v_power_D.head()
 
 
 
-# In[193]:
+# In[ ]:
 
 
-shell_v_power_n.head()
 
 
-# In[194]:
+
+# In[ ]:
 
 
-orders_filtered.head(10)
 
 
-# In[155]:
+
+# In[ ]:
 
 
-orders_filtered['min_after'].min()
 
 
-# In[186]:
+
+# In[ ]:
 
 
-print(windows_exact)
 
 
-# In[183]:
+
+# In[ ]:
 
 
-print(H)
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
 
 
 # In[ ]:
