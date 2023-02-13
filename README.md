@@ -26,4 +26,4 @@ fecha de revision, es la hora en la cual fueron tomados los stocks, debe estar p
 
 Resumen de la matematica para el calculo de productos
 
-[Doc tecnico](ryzen_doc_calc. pdf)
+[Doc tecnico](ryzen_doc_calc.pdf)
